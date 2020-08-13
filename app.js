@@ -3,6 +3,7 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
+const _ = require("lodash");
 
 const app = express();
 
@@ -14,14 +15,6 @@ app.use(bodyParser.urlencoded({
 
 app.use(express.static("public"));
 
-
-//app.get("/", (req, res) => {
-//
-//    res.render("list", {
-//        listTitle: "Today",
-//        newItems: items
-//    });
-//});
 
 mongoose.connect("mongodb://localhost:27017/todolistDB", {
     useNewUrlParser: true,
@@ -46,7 +39,7 @@ const item3 = new Item({
     name: "<-- Hit this to delete an item."
 });
 
-const defaulItems = [item1, item2, item3];
+const defaultItems = [item1, item2, item3];
 
 const listSchema = {
     name: String,
@@ -59,7 +52,7 @@ app.get("/", function (req, res) {
 
     Item.find({}, (err, results) => {
         if (results.length === 0) {
-            Item.insertMany(defaulItems, (err) => {
+            Item.insertMany(defaultItems, (err) => {
                 if (err) {
                     console.log(err);
                 } else {
@@ -78,46 +71,59 @@ app.get("/", function (req, res) {
 });
 
 app.get("/:customListName", (req, res) => {
-    const customListName = req.params.customListName;
-    const list = new List({
-        name: customListName,
-        items: defaulItems
-    });
 
-    //    List.find({
-    //        name = customListName
-    //    }, (err, results) => {
-    //        if (results.length === 0) {
-    //            List.insertMany([item1, item2, item3], (err) => {
-    //                if (err) {
-    //                    console.log(err);
-    //                } else {
-    //                    console.log("Successfully saved default items to DB!");
-    //                }
-    //            });
-    //            res.redirect("/");
-    //        } else {
-    //            res.render("list", {
-    //                listTitle: "Today",
-    //                newListItems: results
-    //            });
-    //        }
-    //    });
+    const customListName = _.capitalize(req.params.customListName);
+    List.findOne({
+        name: customListName
+    }, (err, found) => {
+        if (!err) {
+            if (!found) {
+                const list = new List({
+                    name: customListName,
+                    items: defaultItems
+                });
+                list.save();
+                res.redirect("/" + customListName);
+            } else {
+
+                res.render("list", {
+                    listTitle: found.name,
+                    newListItems: found.items
+                });
+            };
+        };
+    });
 });
+
 
 app.post("/", function (req, res) {
 
+    // You use the name of the element to identify
+    // what value attribute you want
+    // ex. <%=listTitle%> is the VALUE the button named "list"
     const item = req.body.newItem;
+    const listName = req.body.list;
 
     const itemDoc = new Item({
         name: item
     });
-    itemDoc.save();
-    res.redirect("/");
+
+    if (listName === "Today") {
+        itemDoc.save();
+        res.redirect("/");
+    } else {
+        List.findOne({
+            name: listName
+        }, (err, found) => {
+            found.items.push(itemDoc);
+            found.save();
+            res.redirect("/" + listName);
+        });
+    };
 });
 
 app.post("/delete", function (req, res) {
-    const checkedItemId = req.body.checkbox;
+    const checkedItemId = req.body.checkbox.id;
 
     Item.findByIdAndRemove(checkedItemId, (err) => {
         if (err) {
@@ -130,12 +136,12 @@ app.post("/delete", function (req, res) {
     res.redirect("/");
 });
 
-app.get("/work", function (req, res) {
-    res.render("list", {
-        listTitle: "Work List",
-        newListItems: workItems
-    });
-});
+//app.get("/work", function (req, res) {
+//    res.render("list", {
+//        listTitle: "Work List",
+//        newListItems: workItems
+//    });
+//});
 
 app.get("/about", function (req, res) {
     res.render("about");
