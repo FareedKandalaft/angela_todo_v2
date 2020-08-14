@@ -15,7 +15,6 @@ app.use(bodyParser.urlencoded({
 
 app.use(express.static("public"));
 
-
 mongoose.connect("mongodb://localhost:27017/todolistDB", {
     useNewUrlParser: true,
     useUnifiedTopology: true
@@ -38,6 +37,7 @@ const item2 = new Item({
 const item3 = new Item({
     name: "<-- Hit this to delete an item."
 });
+
 
 const defaultItems = [item1, item2, item3];
 
@@ -71,13 +71,14 @@ app.get("/", function (req, res) {
 });
 
 app.get("/:customListName", (req, res) => {
-
     const customListName = _.capitalize(req.params.customListName);
+
     List.findOne({
         name: customListName
     }, (err, found) => {
         if (!err) {
             if (!found) {
+                // Create a new list
                 const list = new List({
                     name: customListName,
                     items: defaultItems
@@ -85,13 +86,13 @@ app.get("/:customListName", (req, res) => {
                 list.save();
                 res.redirect("/" + customListName);
             } else {
-
+                //Show an existing list
                 res.render("list", {
                     listTitle: found.name,
                     newListItems: found.items
                 });
-            };
-        };
+            }
+        }
     });
 });
 
@@ -100,7 +101,7 @@ app.post("/", function (req, res) {
 
     // You use the name of the element to identify
     // what value attribute you want
-    // ex. <%=listTitle%> is the VALUE the button named "list"
+    // ex. <%=listTitle%> is the VALUE prvided by  the button named "list"
     const item = req.body.newItem;
     const listName = req.body.list;
 
@@ -119,29 +120,37 @@ app.post("/", function (req, res) {
             found.save();
             res.redirect("/" + listName);
         });
-    };
+    }
 });
 
 app.post("/delete", function (req, res) {
-    const checkedItemId = req.body.checkbox.id;
+    const checkedItemId = req.body.checkbox;
+    const listName = req.body.listName;
 
-    Item.findByIdAndRemove(checkedItemId, (err) => {
-        if (err) {
-            console.log(err);
-        } else {
-            console.log("Successfully deleted item id " + checkedItemId + ".");
-        }
-    });
-
-    res.redirect("/");
+    if (listName === "Today") {
+        Item.findByIdAndRemove(checkedItemId, function (err) {
+            if (!err) {
+                console.log("Successfully deleted checked item.");
+                res.redirect("/");
+            }
+        });
+    } else {
+        List.findOneAndUpdate({
+            name: listName
+        }, {
+            $pull: {
+                items: {
+                    _id: checkedItemId
+                }
+            }
+        }, function (err, foundList) {
+            if (!err) {
+                res.redirect("/" + listName);
+            }
+        });
+    }
 });
 
-//app.get("/work", function (req, res) {
-//    res.render("list", {
-//        listTitle: "Work List",
-//        newListItems: workItems
-//    });
-//});
 
 app.get("/about", function (req, res) {
     res.render("about");
